@@ -1,9 +1,38 @@
+# User variables
+
+bond_length = 0.05
+scaling_method = 'grid'
+degree_of_polymerization = 10
+N_peg = 5
+box_size = 5
+
+# Calculations
+
+MW_polymer = 133.11*degree_of_polymerization+44.05*N_peg
+
+def density_to_n(density, molecular_weight, box_dimensions):
+  """
+  Description: output the number of molecules of molecular_weight and density
+  that are needed to fill a box with size box_dimensions
+  density: density of the molecules in g/ml
+  molecular_weight: molecular weight of the full in amu or g/mol
+  box_dimensions: dimensions of box to fill in nm
+  """
+  box_volume = np.prod(box_dimensions)
+  N = density / molecular_weight * (1e-21) * (6.02e23) * box_volume
+  return int(N)
+
+box_dimensions = [box_size, box_size, box_size]
+# N_water = density_to_n(1, 18.02, box_dimensions)
+# N_polymer = density_to_n(25e-3, MW_polymer, box_dimensions)
+N_water = 200
+N_polymer = 10
+
+# Start of script
+
 import numpy as np
 import mbuild as mb
 import random
-
-# VARIABLES
-bond_length = 0.05
 
 class Monomer(mb.Compound):
   """
@@ -24,7 +53,7 @@ class Monomer(mb.Compound):
 class Polymer(mb.Compound):
   """
   Create a custom polymer block.
-  monomer_chain: a list containing the monomers the block should comprise of in the correct order.
+  monomer_chain: a list containing the monomers the block should comprise of in the specified order
   """
   def __init__(self, monomer_chain):
     super(Polymer, self).__init__()
@@ -32,10 +61,10 @@ class Polymer(mb.Compound):
     for i in range(len(monomer_chain)):
       next_monomer = mb.clone(monomer_chain[i])
       if i == 0:
-        # Initialize the first monomer properly
+        # Initialize first monomer if no monomers exist yet
         current_monomer = next_monomer
       else:
-        # Move monomer over and add it to the chain
+        # Move monomer over from up port to down port
         mb.force_overlap(move_this=next_monomer,
                          from_positions=next_monomer['up'],
                          to_positions=current_monomer['down'])
@@ -86,25 +115,67 @@ def RandomizedPolymerBlock(monomers, monomer_ratios, chain_length):
     monomer_names.append(monomers[pos])
   return Polymer(monomer_names)
 
-# Creation of system
+# Creation of polymers
 
-alpha = Monomer('alpha_acetic_acid.pdb', [2, 0])
-beta = Monomer('beta_acetic_acid.pdb', [2, 0])
+# Monomers and molecules
+alpha = Monomer('molecules/alpha_acetic_acid.pdb', [2, 0])
+beta = Monomer('molecules/beta_acetic_acid.pdb', [2, 0])
+peg = Monomer('molecules/PEG.pdb', [1, 0])
+water = mb.load('molecules/water.pdb')
 
-polymer = RandomizedPolymerBlock([alpha, beta], [1, 3], 20)
-polymer2 = PolymerBlock([alpha, beta], [1, 3], 5)
+# Create polymers
+polymer_block_A = RandomizedPolymerBlock([alpha, beta], [1, 3], degree_of_polymerization)
+polymer_block_PEG = PolymerBlock([peg], [1], N_peg)
+polymer = PolymerBlock([polymer_block_A, polymer_block_PEG], [1, 1])
+# polymer = peg
 
-# SYSTEM
+# system = mb.packing.fill_box([polymer, water], box=box_dimensions, n_compounds=[N_polymer, N_water])
+system = polymer_block_PEG
+system.save('polymer_test.gsd', overwrite=True)
 
-# system = mb.Compound()
 
-# pattern_disk = mb.DiskPattern(50)
-# pattern_disk.scale(5)
 
-# # now clone the polymer and move it to the points in the pattern
-# for pos in pattern_disk:
-#     current_polymer = mb.clone(polymer)
-#     mb.translate(current_polymer, pos)
-#     system.add(current_polymer)
 
-polymer2.save('mbuild_test.gsd', overwrite=True)
+
+
+
+
+
+
+
+
+
+
+
+
+# if scaling_method == 'grid':
+#   polymer_positions = mb.Grid3DPattern(1, 8, 3) # [x, y, z]
+#   polymer_positions.scale([3, 2, 1.5]) # [x, y, z]; initial (ratio) scaling
+#   polymer_positions.scale(3) # absolute scaling
+# else:
+#   polymer_positions = mb.Random3DPattern(20)
+#   polymer_positions.scale(3)
+
+# polymers = mb.Compound()
+# for position in polymer_positions:
+#   current_polymer = mb.clone(polymer1)
+#   mb.Compound.translate(current_polymer, position)
+#   polymers.add(current_polymer)
+
+# Solvate system
+
+# solvate_box_extension = np.array([0, 0, 0])
+# polymer_box = polymers.boundingbox.maxs
+# solvate_box = polymer_box + solvate_box_extension
+# solvate_box = np.around(solvate_box, decimals=1).tolist() # needs to be a python list
+
+# solvate_box = polymers.boundingbox
+
+# print(solvate_box)
+
+# system = mb.packing.solvate(
+#   polymers, water, 200, box = solvate_box,
+#   # overlap=0.2, seed=12345, edge=0.2, fix_orientation=False,
+#   # temp_file=None, update_port_locations=False
+# )
+
